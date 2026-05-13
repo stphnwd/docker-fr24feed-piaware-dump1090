@@ -5,7 +5,7 @@ services:
     restart: unless-stopped
     volumes:
       - /etc/localtime:/etc/localtime:ro # needed to sync time for MLAT
-    environment: 
+    environment:
       - "FR24FEED_FR24KEY=MY_SHARING_KEY"
       - "PIAWARE_FEEDER_DASH_ID=MY_FEEDER_ID"
       - "HTML_SITE_LAT=MY_SITE_LAT"
@@ -40,7 +40,13 @@ services:
       - "SERVICE_ENABLE_ADSBHUB=true"
       - "ADSBHUB_CKEY=MY_SHARING_KEY"
       - "SERVICE_ENABLE_BIAST=true"
-      - "BIAST_ARGS=-b 1"
+      # Pin existing services to the 1090 dongle (serial 00000100)
+      - "BIAST_ARGS=-d 00000100 -b 1"
+      - "DUMP1090_ADDITIONAL_ARGS=--device-index 00000100"
+      # Pull UAT data from the dump978 sidecar over the docker network
+      - "PIAWARE_UAT_DASH_RECEIVER_DASH_TYPE=relay"
+      - "PIAWARE_UAT_DASH_RECEIVER_DASH_HOST=dump978"
+      - "PIAWARE_UAT_DASH_RECEIVER_DASH_PORT=30978"
     devices:
       - "/dev/bus/usb"
     # ports
@@ -56,3 +62,28 @@ services:
       - /run:exec,size=32M
       - /planefinder/log:exec,size=32M
       - /usr/lib/fr24/public_html/data:size=32M
+
+  # UAT (978 MHz) decoder + SkyAware978 web UI.
+  # Bound to SDR serial 00000001 (the second dongle).
+  dump978:
+    image: "ghcr.io/sdr-enthusiasts/docker-dump978:latest"
+    restart: unless-stopped
+    environment:
+      - "TZ=America/New_York"
+      - "LAT=MY_SITE_LAT"
+      - "LON=MY_SITE_LON"
+      - "DUMP978_RTLSDR_DEVICE=00000001"
+      - "DUMP978_SDR_GAIN=autogain"
+      # DUMP978_ENABLE_BIASTEE intentionally unset — stock whip doesn't need it.
+    devices:
+      - "/dev/bus/usb"
+    # ports
+    # 80    - SkyAware978 web UI (host 8978, path /skyaware978/)
+    # 30978 - raw UAT feed; kept internal to the docker network for piaware
+    ports:
+      - "8978:80"
+    tmpfs:
+      - /run:exec,size=32M
+    logging:
+      options:
+        max-size: "30m"
