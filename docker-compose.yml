@@ -6,42 +6,42 @@ services:
     volumes:
       - /etc/localtime:/etc/localtime:ro # needed to sync time for MLAT
     environment:
-      - "FR24FEED_FR24KEY=MY_SHARING_KEY"
-      - "PIAWARE_FEEDER_DASH_ID=MY_FEEDER_ID"
-      - "HTML_SITE_LAT=MY_SITE_LAT"
-      - "HTML_SITE_LON=MY_SITE_LON"
-      - "HTML_SITE_ALT=MY_SITE_ALT"
-      - "HTML_SITE_NAME=MY_SITE_NAME"
+      - "FR24FEED_FR24KEY=${FR24FEED_FR24KEY}"
+      - "PIAWARE_FEEDER_DASH_ID=${PIAWARE_FEEDER_DASH_ID}"
+      - "HTML_SITE_LAT=${SITE_LAT}"
+      - "HTML_SITE_LON=${SITE_LON}"
+      - "HTML_SITE_ALT=${SITE_ALT}"
+      - "HTML_SITE_NAME=${STATION_NAME}"
       - "HTML_DEFAULT_TRACKER=Flightradar24"
       - "HTML_RECEIVER_STATS_PAGE_FLIGHTAWARE=https://flightaware.com/adsb/stats/user/"
-      - "HTML_RECEIVER_STATS_PAGE_FLIGHTRADAR24=https://www.flightradar24.com/account/feed-stats/?id=<YOUR_RECEIVERS_ID>"
-      - "HTML_RECEIVER_STATS_PAGE_ADSBEXCHANGE=https://www.adsbexchange.com/api/feeders/?feed=<YOUR_RECEIVERS_ID>"
-      - "HTML_RECEIVER_STATS_PAGE_PLANEFINDER=https://planefinder.net/coverage/receiver/<YOUR_RECEIVERS_ID>"
-      - "HTML_RECEIVER_STATS_PAGE_OPENSKY_NETWORK=https://opensky-network.org/receiver-profile?s=<YOUR_RECEIVERS_ID>"
+      - "HTML_RECEIVER_STATS_PAGE_FLIGHTRADAR24=https://www.flightradar24.com/account/feed-stats/?id=${FR24_RECEIVER_ID}"
+      - "HTML_RECEIVER_STATS_PAGE_ADSBEXCHANGE=https://www.adsbexchange.com/api/feeders/?feed=${ADSBEXCHANGE_RECEIVER_ID}"
+      - "HTML_RECEIVER_STATS_PAGE_PLANEFINDER=https://planefinder.net/coverage/receiver/${PLANEFINDER_RECEIVER_ID}"
+      #- "HTML_RECEIVER_STATS_PAGE_OPENSKY_NETWORK=https://opensky-network.org/receiver-profile?s=<YOUR_RECEIVERS_ID>"
       - "HTML_FR24_FEEDER_STATUS_PAGE=http://<dockerhost>:8754/"
-      - "PANORAMA_ID=MY_PANORAMA_ID"
-      - "LAYERS_OWM_API_KEY=MY_OWM_API_KEY"
+      #- "PANORAMA_ID=MY_PANORAMA_ID"
+      #- "LAYERS_OWM_API_KEY=MY_OWM_API_KEY"
       - "SERVICE_ENABLE_ADSBEXCHANGE=true"
-      - "ADSBEXCHANGE_UUID=MY_UUID"
-      - "ADSBEXCHANGE_STATION_NAME=MY_STATION_NAME"
-      - "MLAT_EXACT_LAT=MY_EXACT_SITE_LAT"
-      - "MLAT_EXACT_LON=MY_EXACT_SITE_LON"
-      - "MLAT_ALTITUDE_MSL_METERS=MY_SITE_ALT_MSL_METERS"
+      - "ADSBEXCHANGE_UUID=${ADSBEXCHANGE_UUID}"
+      - "ADSBEXCHANGE_STATION_NAME=${STATION_NAME}"
+      - "MLAT_EXACT_LAT=${SITE_LAT}"
+      - "MLAT_EXACT_LON=${SITE_LON}"
+      - "MLAT_ALTITUDE_MSL_METERS=${SITE_ALT}"
       - "SERVICE_ENABLE_PLANEFINDER=true"
-      - "PLANEFINDER_SHARECODE=MY_SHARE_CODE"
-      - "SERVICE_ENABLE_OPENSKY=true"
+      - "PLANEFINDER_SHARECODE=${PLANEFINDER_SHARECODE}"
+      - "SERVICE_ENABLE_OPENSKY=false"
       - "OPENSKY_USERNAME=MY_OPENSKY_USERNAME"
       - "OPENSKY_SERIAL=MY_OPENSKY_RECEIVER_SERIAL"
-      - "SERVICE_ENABLE_ADSBFI=true"
+      - "SERVICE_ENABLE_ADSBFI=false"
       - "ADSBFI_UUID=MY_UUID"
       - "ADSBFI_STATION_NAME=MY_STATION_NAME"
-      - "SERVICE_ENABLE_RADARBOX=true"
+      - "SERVICE_ENABLE_RADARBOX=false"
       - "RADARBOX_SHARING_KEY=MY_SHARING_KEY"
       - "SERVICE_ENABLE_ADSBHUB=true"
       - "ADSBHUB_CKEY=MY_SHARING_KEY"
-      - "SERVICE_ENABLE_BIAST=true"
+      - "SERVICE_ENABLE_BIAST=false"
       # Pin existing services to the 1090 dongle (serial 00000100)
-      - "BIAST_ARGS=-d 00000100 -b 1"
+      #- "BIAST_ARGS=-d 00000100"
       - "DUMP1090_ADDITIONAL_ARGS=--device-index 00000100"
       # Pull UAT data from the dump978 sidecar over the docker network
       - "PIAWARE_UAT_DASH_RECEIVER_DASH_TYPE=relay"
@@ -70,8 +70,8 @@ services:
     restart: unless-stopped
     environment:
       - "TZ=America/New_York"
-      - "LAT=MY_SITE_LAT"
-      - "LON=MY_SITE_LON"
+      - "LAT=${SITE_LAT}"
+      - "LON=${SITE_LON}"
       - "DUMP978_RTLSDR_DEVICE=00000001"
       - "DUMP978_SDR_GAIN=autogain"
       # DUMP978_ENABLE_BIASTEE intentionally unset — stock whip doesn't need it.
@@ -84,6 +84,28 @@ services:
       - "8978:80"
     tmpfs:
       - /run:exec,size=32M
+    logging:
+      options:
+        max-size: "30m"
+
+  # airplanes.live feeder (ADS-B + MLAT).
+  # Net-only readsb + mlat-client sidecar; pulls BEAST from the main container's
+  # dump1090 over the docker network and pushes to feed.airplanes.live.
+  airplanes-live:
+    image: "ghcr.io/sdr-enthusiasts/docker-adsb-ultrafeeder:latest"
+    restart: unless-stopped
+    environment:
+      - "TZ=America/New_York"
+      - "LAT=${SITE_LAT}"
+      - "LONG=${SITE_LON}"
+      - "ALT=${SITE_ALT}m"
+      - "MLAT_USER=${STATION_NAME}"
+      - "UUID=${AIRPLANES_LIVE_UUID}"
+      # READSB_DEVICE_TYPE intentionally unset — net-only, no SDR
+      - "ULTRAFEEDER_CONFIG=adsb,fr24feed-piaware,30005,beast_in;adsb,feed.airplanes.live,30004,beast_reduce_plus_out,uuid=${AIRPLANES_LIVE_UUID};mlat,feed.airplanes.live,31090,uuid=${AIRPLANES_LIVE_UUID}"
+    tmpfs:
+      - /run:exec,size=32M
+      - /var/log:size=32M
     logging:
       options:
         max-size: "30m"
