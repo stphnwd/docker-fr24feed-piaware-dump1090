@@ -1,3 +1,35 @@
+# Existing entries
 patch/upstream
 patch/modified
 patch/resources/aircraft.json
+
+# Claude Code local settings
+.claude/
+
+# Local env / secrets (docker-compose .env)
+.env
+.env.local
+*.env.local
+secrets/
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Python (in case helper scripts get added)
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Backup files
+*.bak
+*.orig
