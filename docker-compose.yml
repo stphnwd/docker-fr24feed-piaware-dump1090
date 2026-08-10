@@ -88,9 +88,9 @@ services:
       options:
         max-size: "30m"
 
-  # airplanes.live feeder (ADS-B + MLAT).
+  # airplanes.live + planespotters.net feeder (ADS-B + MLAT).
   # Net-only readsb + mlat-client sidecar; pulls BEAST from the main container's
-  # dump1090 over the docker network and pushes to feed.airplanes.live.
+  # dump1090 over the docker network and pushes to both aggregators.
   airplanes-live:
     image: "ghcr.io/sdr-enthusiasts/docker-adsb-ultrafeeder:latest"
     restart: unless-stopped
@@ -102,7 +102,7 @@ services:
       - "MLAT_USER=${STATION_NAME}"
       - "UUID=${AIRPLANES_LIVE_UUID}"
       # READSB_DEVICE_TYPE intentionally unset — net-only, no SDR
-      - "ULTRAFEEDER_CONFIG=adsb,fr24feed-piaware,30005,beast_in;adsb,feed.airplanes.live,30004,beast_reduce_plus_out,uuid=${AIRPLANES_LIVE_UUID};mlat,feed.airplanes.live,31090,uuid=${AIRPLANES_LIVE_UUID}"
+      - "ULTRAFEEDER_CONFIG=adsb,fr24feed-piaware,30005,beast_in;adsb,feed.airplanes.live,30004,beast_reduce_plus_out,uuid=${AIRPLANES_LIVE_UUID};mlat,feed.airplanes.live,31090,uuid=${AIRPLANES_LIVE_UUID};adsb,feed.planespotters.net,30004,beast_reduce_plus_out,uuid=${PLANESPOTTERS_UUID};mlat,mlat.planespotters.net,31090,39003,uuid=${PLANESPOTTERS_UUID}"
     tmpfs:
       - /run:exec,size=32M
       - /var/log:size=32M
