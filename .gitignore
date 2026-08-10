@@ -25,6 +25,9 @@ Thumbs.db
 *.log
 logs/
 
+# Ultrafeeder persistent data (globe history, graphs1090 rrd)
+data/
+
 # Python (in case helper scripts get added)
 __pycache__/
 *.py[cod]

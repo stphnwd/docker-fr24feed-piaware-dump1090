@@ -1,72 +1,59 @@
-version: "3.7"
 services:
-  fr24feed-piaware:
-    image: "thomx/fr24feed-piaware"
+  # Core: readsb decoder on the 1090 SDR (serial 00000100) + tar1090 map +
+  # graphs1090 stats + direct feeds to all account-less aggregators.
+  # Also ingests UAT from dump978 so 978 traffic reaches every aggregator below.
+  ultrafeeder:
+    image: ghcr.io/sdr-enthusiasts/docker-adsb-ultrafeeder:latest
     restart: unless-stopped
-    volumes:
-      - /etc/localtime:/etc/localtime:ro # needed to sync time for MLAT
-    environment:
-      - "FR24FEED_FR24KEY=${FR24FEED_FR24KEY}"
-      - "PIAWARE_FEEDER_DASH_ID=${PIAWARE_FEEDER_DASH_ID}"
-      - "HTML_SITE_LAT=${SITE_LAT}"
-      - "HTML_SITE_LON=${SITE_LON}"
-      - "HTML_SITE_ALT=${SITE_ALT}"
-      - "HTML_SITE_NAME=${STATION_NAME}"
-      - "HTML_DEFAULT_TRACKER=Flightradar24"
-      - "HTML_RECEIVER_STATS_PAGE_FLIGHTAWARE=https://flightaware.com/adsb/stats/user/"
-      - "HTML_RECEIVER_STATS_PAGE_FLIGHTRADAR24=https://www.flightradar24.com/account/feed-stats/?id=${FR24_RECEIVER_ID}"
-      - "HTML_RECEIVER_STATS_PAGE_ADSBEXCHANGE=https://www.adsbexchange.com/api/feeders/?feed=${ADSBEXCHANGE_RECEIVER_ID}"
-      - "HTML_RECEIVER_STATS_PAGE_PLANEFINDER=https://planefinder.net/coverage/receiver/${PLANEFINDER_RECEIVER_ID}"
-      #- "HTML_RECEIVER_STATS_PAGE_OPENSKY_NETWORK=https://opensky-network.org/receiver-profile?s=<YOUR_RECEIVERS_ID>"
-      - "HTML_FR24_FEEDER_STATUS_PAGE=http://<dockerhost>:8754/"
-      #- "PANORAMA_ID=MY_PANORAMA_ID"
-      #- "LAYERS_OWM_API_KEY=MY_OWM_API_KEY"
-      - "SERVICE_ENABLE_ADSBEXCHANGE=true"
-      - "ADSBEXCHANGE_UUID=${ADSBEXCHANGE_UUID}"
-      - "ADSBEXCHANGE_STATION_NAME=${STATION_NAME}"
-      - "MLAT_EXACT_LAT=${SITE_LAT}"
-      - "MLAT_EXACT_LON=${SITE_LON}"
-      - "MLAT_ALTITUDE_MSL_METERS=${SITE_ALT}"
-      - "SERVICE_ENABLE_PLANEFINDER=true"
-      - "PLANEFINDER_SHARECODE=${PLANEFINDER_SHARECODE}"
-      - "SERVICE_ENABLE_OPENSKY=false"
-      - "OPENSKY_USERNAME=MY_OPENSKY_USERNAME"
-      - "OPENSKY_SERIAL=MY_OPENSKY_RECEIVER_SERIAL"
-      - "SERVICE_ENABLE_ADSBFI=false"
-      - "ADSBFI_UUID=MY_UUID"
-      - "ADSBFI_STATION_NAME=MY_STATION_NAME"
-      - "SERVICE_ENABLE_RADARBOX=false"
-      - "RADARBOX_SHARING_KEY=MY_SHARING_KEY"
-      - "SERVICE_ENABLE_ADSBHUB=true"
-      - "ADSBHUB_CKEY=MY_SHARING_KEY"
-      - "SERVICE_ENABLE_BIAST=false"
-      # Pin existing services to the 1090 dongle (serial 00000100)
-      #- "BIAST_ARGS=-d 00000100"
-      - "DUMP1090_ADDITIONAL_ARGS=--device-index 00000100"
-      # Pull UAT data from the dump978 sidecar over the docker network
-      - "PIAWARE_UAT_DASH_RECEIVER_DASH_TYPE=relay"
-      - "PIAWARE_UAT_DASH_RECEIVER_DASH_HOST=dump978"
-      - "PIAWARE_UAT_DASH_RECEIVER_DASH_PORT=30978"
+    device_cgroup_rules:
+      - "c 189:* rwm"
     devices:
-      - "/dev/bus/usb"
-    # ports
-    # 8754 - DUMP1090 server port
-    # 8080 - HTTP server port
+      - /dev/bus/usb
     ports:
-      - "8754:8754"
-      - "8080:8080"
+      - "8080:80"          # tar1090 map; graphs1090 at /graphs1090/
+    environment:
+      - "TZ=America/New_York"
+      - "LAT=${SITE_LAT}"
+      - "LONG=${SITE_LON}"
+      - "ALT=${SITE_ALT}m"
+      - "READSB_DEVICE_TYPE=rtlsdr"
+      - "READSB_RTLSDR_DEVICE=00000100"
+      - "READSB_GAIN=autogain"
+      - "MLAT_USER=${STATION_NAME}"
+      - "ULTRAFEEDER_CONFIG=
+          adsb,dump978,30978,uat_in;
+          adsb,feed.airplanes.live,30004,beast_reduce_plus_out,uuid=${AIRPLANES_LIVE_UUID};
+          mlat,feed.airplanes.live,31090,uuid=${AIRPLANES_LIVE_UUID};
+          adsb,feed.planespotters.net,30004,beast_reduce_plus_out,uuid=${PLANESPOTTERS_UUID};
+          mlat,mlat.planespotters.net,31090,uuid=${PLANESPOTTERS_UUID};
+          adsb,feed1.adsbexchange.com,30004,beast_reduce_plus_out,uuid=${ADSBEXCHANGE_UUID};
+          mlat,feed.adsbexchange.com,31090,uuid=${ADSBEXCHANGE_UUID};
+          adsb,feed.adsb.fi,30004,beast_reduce_plus_out,uuid=${ADSB_FI_UUID};
+          mlat,feed.adsb.fi,31090,uuid=${ADSB_FI_UUID};
+          adsb,in.adsb.lol,30004,beast_reduce_plus_out,uuid=${ADSB_LOL_UUID};
+          mlat,in.adsb.lol,31090,uuid=${ADSB_LOL_UUID};
+          adsb,feed.theairtraffic.com,30004,beast_reduce_plus_out,uuid=${THEAIRTRAFFIC_UUID};
+          mlat,feed.theairtraffic.com,31090,uuid=${THEAIRTRAFFIC_UUID}"
+      - "TAR1090_MESSAGERATEINTITLE=true"
+      - "TAR1090_PLANECOUNTINTITLE=true"
+      - "TAR1090_ENABLE_AC_DB=true"
+      - "GRAPHS1090_DARKMODE=true"
+    volumes:
+      - ./data/ultrafeeder/globe_history:/var/globe_history
+      - ./data/ultrafeeder/graphs1090:/var/lib/collectd
+      - /proc/diskstats:/proc/diskstats:ro
+    tmpfs:
+      - /run:exec,size=64M
+      - /tmp:size=64M
+      - /var/log:size=32M
     logging:
       options:
         max-size: "30m"
-    tmpfs:
-      - /run:exec,size=32M
-      - /planefinder/log:exec,size=32M
-      - /usr/lib/fr24/public_html/data:size=32M
 
-  # UAT (978 MHz) decoder + SkyAware978 web UI.
+  # UAT (978 MHz) decoder + SkyAware978 web UI. Unchanged from before.
   # Bound to SDR serial 00000001 (the second dongle).
   dump978:
-    image: "ghcr.io/sdr-enthusiasts/docker-dump978:latest"
+    image: ghcr.io/sdr-enthusiasts/docker-dump978:latest
     restart: unless-stopped
     environment:
       - "TZ=America/New_York"
@@ -76,36 +63,87 @@ services:
       - "DUMP978_SDR_GAIN=autogain"
       # DUMP978_ENABLE_BIASTEE intentionally unset — stock whip doesn't need it.
     devices:
-      - "/dev/bus/usb"
-    # ports
-    # 80    - SkyAware978 web UI (host 8978, path /skyaware978/)
-    # 30978 - raw UAT feed; kept internal to the docker network for piaware
+      - /dev/bus/usb
     ports:
-      - "8978:80"
+      - "8978:80"          # SkyAware978; raw 30978 stays internal
     tmpfs:
       - /run:exec,size=32M
     logging:
       options:
         max-size: "30m"
 
-  # airplanes.live + planespotters.net feeder (ADS-B + MLAT).
-  # Net-only readsb + mlat-client sidecar; pulls BEAST from the main container's
-  # dump1090 over the docker network and pushes to both aggregators.
-  airplanes-live:
-    image: "ghcr.io/sdr-enthusiasts/docker-adsb-ultrafeeder:latest"
+  # FlightAware feeder. Same FEEDER_ID as before, so stats continue.
+  # 1090 from ultrafeeder; UAT relayed straight from dump978 as before.
+  piaware:
+    image: ghcr.io/sdr-enthusiasts/docker-piaware:latest
     restart: unless-stopped
     environment:
       - "TZ=America/New_York"
+      - "FEEDER_ID=${PIAWARE_FEEDER_DASH_ID}"
+      - "RECEIVER_TYPE=relay"
+      - "BEASTHOST=ultrafeeder"
+      - "BEASTPORT=30005"
+      - "UAT_RECEIVER_TYPE=relay"
+      - "UAT_RECEIVER_HOST=dump978"
+      - "ALLOW_MLAT=yes"
+      - "MLAT_RESULTS=yes"
+      # FlightAware MLAT results go back into ultrafeeder's mlathub → tar1090
+      - "MLAT_RESULTS_BEASTHOST=ultrafeeder"
+      - "MLAT_RESULTS_BEASTPORT=31004"
       - "LAT=${SITE_LAT}"
       - "LONG=${SITE_LON}"
-      - "ALT=${SITE_ALT}m"
-      - "MLAT_USER=${STATION_NAME}"
-      - "UUID=${AIRPLANES_LIVE_UUID}"
-      # READSB_DEVICE_TYPE intentionally unset — net-only, no SDR
-      - "ULTRAFEEDER_CONFIG=adsb,fr24feed-piaware,30005,beast_in;adsb,feed.airplanes.live,30004,beast_reduce_plus_out,uuid=${AIRPLANES_LIVE_UUID};mlat,feed.airplanes.live,31090,uuid=${AIRPLANES_LIVE_UUID};adsb,feed.planespotters.net,30004,beast_reduce_plus_out,uuid=${PLANESPOTTERS_UUID};mlat,mlat.planespotters.net,31090,39003,uuid=${PLANESPOTTERS_UUID}"
+    ports:
+      - "8081:80"          # SkyAware
+    tmpfs:
+      - /run:exec,size=64M
+      - /var/log:size=32M
+    logging:
+      options:
+        max-size: "30m"
+
+  # FlightRadar24 feeder. Same sharing key as before.
+  fr24:
+    image: ghcr.io/sdr-enthusiasts/docker-flightradar24:latest
+    restart: unless-stopped
+    environment:
+      - "TZ=America/New_York"
+      - "FR24KEY=${FR24FEED_FR24KEY}"
+      - "BEASTHOST=ultrafeeder"
+      - "MLAT=yes"
+    ports:
+      - "8754:8754"        # fr24feed status page, same port as before
+    tmpfs:
+      - /var/log:size=32M
+    logging:
+      options:
+        max-size: "30m"
+
+  # Planefinder feeder. Same sharecode as before.
+  planefinder:
+    image: ghcr.io/sdr-enthusiasts/docker-planefinder:latest
+    restart: unless-stopped
+    environment:
+      - "TZ=America/New_York"
+      - "SHARECODE=${PLANEFINDER_SHARECODE}"
+      - "BEASTHOST=ultrafeeder"
+      - "LAT=${SITE_LAT}"
+      - "LONG=${SITE_LON}"
+    ports:
+      - "30053:30053"      # pfclient web GUI
     tmpfs:
       - /run:exec,size=32M
-      - /var/log:size=32M
+    logging:
+      options:
+        max-size: "30m"
+
+  # ADSBHub feeder (SBS from ultrafeeder). Needs a real station key in .env.
+  adsbhub:
+    image: ghcr.io/sdr-enthusiasts/docker-adsbhub:latest
+    restart: unless-stopped
+    environment:
+      - "TZ=America/New_York"
+      - "SBSHOST=ultrafeeder"
+      - "CLIENTKEY=${ADSBHUB_CKEY}"
     logging:
       options:
         max-size: "30m"
