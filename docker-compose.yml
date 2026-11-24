@@ -1,7 +1,6 @@
 services:
   # Core: readsb decoder on the 1090 SDR (serial 00000100) + tar1090 map +
   # graphs1090 stats + direct feeds to all account-less aggregators.
-  # Also ingests UAT from dump978 so 978 traffic reaches every aggregator below.
   ultrafeeder:
     image: ghcr.io/sdr-enthusiasts/docker-adsb-ultrafeeder:latest
     restart: unless-stopped
@@ -21,7 +20,6 @@ services:
       - "READSB_GAIN=autogain"
       - "MLAT_USER=${STATION_NAME}"
       - "ULTRAFEEDER_CONFIG=
-          adsb,dump978,30978,uat_in;
           adsb,feed.airplanes.live,30004,beast_reduce_plus_out,uuid=${AIRPLANES_LIVE_UUID};
           mlat,feed.airplanes.live,31090,uuid=${AIRPLANES_LIVE_UUID};
           adsb,feed.planespotters.net,30004,beast_reduce_plus_out,uuid=${PLANESPOTTERS_UUID};
@@ -50,30 +48,8 @@ services:
       options:
         max-size: "30m"
 
-  # UAT (978 MHz) decoder + SkyAware978 web UI. Unchanged from before.
-  # Bound to SDR serial 00000001 (the second dongle).
-  dump978:
-    image: ghcr.io/sdr-enthusiasts/docker-dump978:latest
-    restart: unless-stopped
-    environment:
-      - "TZ=America/New_York"
-      - "LAT=${SITE_LAT}"
-      - "LON=${SITE_LON}"
-      - "DUMP978_RTLSDR_DEVICE=00000001"
-      - "DUMP978_SDR_GAIN=autogain"
-      # DUMP978_ENABLE_BIASTEE intentionally unset — stock whip doesn't need it.
-    devices:
-      - /dev/bus/usb
-    ports:
-      - "8978:80"          # SkyAware978; raw 30978 stays internal
-    tmpfs:
-      - /run:exec,size=32M
-    logging:
-      options:
-        max-size: "30m"
-
   # FlightAware feeder. Same FEEDER_ID as before, so stats continue.
-  # 1090 from ultrafeeder; UAT relayed straight from dump978 as before.
+  # 1090 from ultrafeeder. No UAT: 978 MHz retired 2026-11-24 (no signal at the antenna).
   piaware:
     image: ghcr.io/sdr-enthusiasts/docker-piaware:latest
     restart: unless-stopped
@@ -83,8 +59,7 @@ services:
       - "RECEIVER_TYPE=relay"
       - "BEASTHOST=ultrafeeder"
       - "BEASTPORT=30005"
-      - "UAT_RECEIVER_TYPE=relay"
-      - "UAT_RECEIVER_HOST=dump978"
+      - "UAT_RECEIVER_TYPE=none"
       - "ALLOW_MLAT=yes"
       - "MLAT_RESULTS=yes"
       # FlightAware MLAT results go back into ultrafeeder's mlathub → tar1090
